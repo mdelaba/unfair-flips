@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Unfair Flips: A probability-bending incremental game.">
+    <meta name="theme-color" content="#15151a">
+    
+    <!-- Open Graph / Social Sharing -->
+    <meta property="og:title" content="Unfair Flips">
+    <meta property="og:description" content="Break the odds in this physics-based incremental game.">
+    <meta property="og:type" content="website">
+
+    <!-- Dynamic Favicon (Coin) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23ffd700' stroke='%23e0b000' stroke-width='5'/><text x='50' y='65' font-size='50' text-anchor='middle' fill='%235c4000' font-family='sans-serif' font-weight='bold'>$</text></svg>">
+
+    <title>Unfair Flips</title>
+    <style>
+        :root {
+            --bg: #0f0f13;
+            --panel-bg: #15151a;
+            --card-bg: #1a1a20;
+            --text-main: #ececec;
+            --text-muted: #8a8a9b;
+            --accent: #00d2ff;
+            --gold: #ffd700;
+            --success: #4bff81;
+            --danger: #ff4b4b;
+            --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            font-family: var(--font);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* --- Header --- */
+        .top-bar {
+            background: rgba(21, 21, 26, 0.98);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 20;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            height: 70px;
+            flex-shrink: 0;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 15px; }
+
+        h1 {
+            font-weight: 800; margin: 0; font-size: 1.1rem;
+            text-transform: uppercase; letter-spacing: 1px;
+            background: linear-gradient(90deg, #fff, var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .mute-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-muted);
+            border-radius: 50%; width: 36px; height: 36px;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .mute-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .mute-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+        .stats-container { display: flex; gap: 1.5rem; }
+        .stat-item { display: flex; flex-direction: column; align-items: flex-end; }
+        .stat-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+        .val-gold { color: var(--gold); font-weight: 700; font-size: 1rem; font-feature-settings: "tnum"; }
+        .val-prob { color: var(--success); font-weight: 700; font-size: 1rem; font-feature-settings: "tnum"; }
+        .val-mult { color: var(--accent); font-weight: 700; font-size: 1rem; font-feature-settings: "tnum"; }
+
+        /* --- Layout --- */
+        .main-layout {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 70px);
+            position: relative;
+        }
+
+        /* --- Left Panel (Shop) --- */
+        .left-panel {
+            width: 320px;
+            min-width: 300px;
+            background: var(--panel-bg);
+            border-right: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+        }
+
+        .panel-header {
+            padding: 1rem; font-size: 0.85rem; font-weight: 700;
+            color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            background: rgba(0,0,0,0.2); text-align: center;
+        }
+
+        .shop-scroll-area { flex: 1; overflow-y: auto; padding: 1rem; -webkit-overflow-scrolling: touch; }
+        .shop-scroll-area::-webkit-scrollbar { width: 4px; }
+        .shop-scroll-area::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+        .shop-item {
+            background: var(--card-bg);
+            border: 1px solid rgba(255,255,255,0.05);
+            padding: 1rem; border-radius: 8px; margin-bottom: 0.8rem;
+            position: relative; transition: transform 0.1s, background 0.1s;
+        }
+        .shop-item:active { transform: scale(0.98); }
+        .shop-item:hover { background: #202026; border-color: rgba(255,255,255,0.1); }
+        .shop-item::before {
+            content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 3px;
+            background: var(--item-color, #444);
+            border-top-left-radius: 8px; border-bottom-left-radius: 8px;
+        }
+
+        .item-top { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .item-name { color: #fff; font-weight: 600; font-size: 0.9rem; }
+        .item-lvl { color: var(--text-muted); font-size: 0.75rem; }
+        .item-desc { color: #999; font-size: 0.8rem; line-height: 1.3; margin-bottom: 10px; }
+        
+        .buy-btn {
+            width: 100%; background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1); color: #fff;
+            padding: 10px 12px; border-radius: 6px; cursor: pointer;
+            font-size: 0.85rem; display: flex; justify-content: space-between;
+            align-items: center; font-weight: 600; transition: background 0.2s;
+        }
+        .buy-btn:hover:not(:disabled) { background: var(--item-color); color: #000; border-color: transparent; }
+        .buy-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        
+        .footer-controls {
+            padding: 1rem; border-top: 1px solid rgba(255,255,255,0.05);
+            text-align: center; font-size: 0.7rem; color: #555;
+        }
+        .reset-link { color: #666; text-decoration: underline; cursor: pointer; }
+        .reset-link:hover { color: var(--danger); }
+
+        /* --- Right Panel (Canvas) --- */
+        .right-panel {
+            flex: 1; position: relative; overflow: hidden;
+            background: radial-gradient(circle at center, #1f1f25 0%, #0f0f13 80%);
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.8);
+        }
+        canvas { display: block; width: 100%; height: 100%; cursor: pointer; touch-action: none; outline: none; }
+
+        /* --- Mobile --- */
+        @media (max-width: 800px) {
+            .main-layout { flex-direction: column-reverse; }
+            .left-panel { width: 100%; height: 45%; border-right: none; border-top: 1px solid rgba(255,255,255,0.1); }
+            .right-panel { height: 55%; }
+            .top-bar { padding: 8px 15px; flex-direction: row; flex-wrap: wrap; height: auto; min-height: 60px; }
+            .header-left { margin-right: auto; }
+            .stats-container { gap: 1rem; margin-top: 5px; width: 100%; justify-content: space-between; }
+            .stat-item { align-items: center; }
+            h1 { font-size: 1rem; }
+        }
+
+        /* --- Modal --- */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); justify-content: center; align-items: center; z-index: 100;
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background: #1e1e24; padding: 2.5rem; border-radius: 16px; text-align: center;
+            border: 1px solid var(--accent); box-shadow: 0 0 60px rgba(0, 210, 255, 0.2);
+            max-width: 90%; width: 400px; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        
+        .restart-btn {
+            background: var(--accent); border: none; padding: 14px 40px; 
+            font-weight: 800; border-radius: 50px; cursor: pointer; margin-top: 25px;
+            text-transform: uppercase; letter-spacing: 1px; color: #000;
+            transition: transform 0.2s;
+        }
+        .restart-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px var(--accent); }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <div class="header-left">
+            <h1>Unfair Flips</h1>
+            <button class="mute-btn" id="muteBtn" aria-label="Toggle Sound" onclick="toggleMute()">
+                <svg id="icon-sound" viewBox="0 0 24 24"><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77zm-4 0h-2.5l-5 5v7.5h5l5 5v-17.5z"/></svg>
+                <svg id="icon-mute" style="display:none;" viewBox="0 0 24 24"><path d="M7 9v6h4l5 5v-16l-5 5h-4zm10 3c0 1.48-.61 2.81-1.6 3.76l1.29 1.29c1.4-1.35 2.31-3.24 2.31-5.05s-.91-3.7-2.31-5.04l-1.29 1.29c.99.95 1.6 2.28 1.6 3.75zm-6.26-10l-1.28-1.28-11.46 11.46 1.28 1.28 2.68-2.68h2.04l5 5v-13.44l3.92-3.92 1.28 1.28-3.46 3.46z"/></svg>
+            </button>
+        </div>
+        <div class="stats-container">
+            <div class="stat-item">
+                <span class="stat-label">Bank</span>
+                <span id="uiMoney" class="val-gold">$0.00</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Win %</span>
+                <span id="uiProb" class="val-prob">50%</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Streak x</span>
+                <span id="uiMult" class="val-mult">1.00x</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <!-- LEFT: UPGRADES -->
+        <div class="left-panel">
+            <div class="panel-header">Black Market</div>
+            <div class="shop-scroll-area">
+                <div id="shop"></div>
+            </div>
+            <div class="footer-controls">
+                <span class="reset-link" onclick="hardReset()">Wipe Save Data</span>
+                <div style="margin-top:5px; opacity:0.5;">v1.0.0 Production</div>
+            </div>
+        </div>
+
+        <!-- RIGHT: GAME CANVAS -->
+        <div class="right-panel" id="canvasContainer">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+    </div>
+
+    <div class="modal" id="winModal">
+        <div class="modal-content">
+            <h2 style="color: var(--accent); margin-top:0; font-size: 2rem; text-transform: uppercase;">Simulation Complete</h2>
+            <p style="color: #ccc; line-height: 1.5;">Streak of 10 achieved.<br>The probability engine has broken.</p>
+            <p id="finalStats" style="color: var(--gold); font-weight: bold; font-size: 1.2rem; margin: 20px 0;"></p>
+            <button class="restart-btn" onclick="hardReset()">Reboot System</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Audio Engine (Safe & Simple) ---
+        const AudioEngine = {
+            ctx: null,
+            muted: false,
+            
+            init: function() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+
+            playTone: function(freq, type, duration, vol=0.1) {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            },
+
+            playFlip: function() {
+                if(this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(800, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            },
+
+            playHeads: function() {
+                this.playTone(880, 'sine', 0.4, 0.1); // A5
+                setTimeout(() => this.playTone(1108, 'sine', 0.4, 0.08), 50); // C#6
+            },
+
+            playTails: function() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.2);
+            },
+
+            playBuy: function() {
+                this.playTone(1200, 'square', 0.1, 0.05);
+                setTimeout(() => this.playTone(1600, 'square', 0.2, 0.05), 80);
+            },
+
+            playWin: function() {
+                if (this.muted || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.05, now + i*0.1);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + i*0.1 + 0.5);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + i*0.1);
+                    osc.stop(now + i*0.1 + 0.5);
+                });
+            }
+        };
+
+        // --- Game State & Persistence ---
+        const SAVE_KEY = 'unfair_flips_v1';
+        
+        let state = {
+            money: 0,
+            streak: 0,
+            baseProbability: 0.50,
+            baseValue: 1,
+            momentumLevel: 0,
+            autoFlipping: false,
+            flipping: false,
+            result: null
+        };
+
+        const upgrades = [
+            {
+                id: 'value', name: 'Polished Coin', desc: 'Increases base payout per Head by $1.',
+                color: '#ffd700', baseCost: 10, costMult: 1.4, level: 0, maxLevel: 100,
+                effect: () => { state.baseValue += 1; }
+            },
+            {
+                id: 'momentum', name: 'Momentum Engine', desc: 'Consecutive heads multiply reward.',
+                color: '#00d2ff', baseCost: 50, costMult: 1.6, level: 0, maxLevel: 20,
+                getMult: () => 1 + (state.momentumLevel * 0.1),
+                effect: () => { state.momentumLevel++; }
+            },
+            {
+                id: 'luck', name: 'Gravity Well', desc: 'Bends physics to ensure heads.',
+                color: '#4bff81', baseCost: 200, costMult: 2.2, level: 0, maxLevel: 14,
+                effect: () => { state.baseProbability += 0.03; }
+            },
+            {
+                id: 'auto', name: 'Auto-Flipper', desc: 'Robotic arm that flips for you.',
+                color: '#e0e0e0', baseCost: 2500, costMult: 1, level: 0, maxLevel: 1,
+                effect: () => { startAutoFlip(); }
+            }
+        ];
+
+        // --- Persistence Logic ---
+        function saveGame() {
+            const data = {
+                money: state.money,
+                streak: state.streak,
+                // We save stats directly because recalculating from levels can be tricky if we change formulas later
+                baseValue: state.baseValue,
+                momentumLevel: state.momentumLevel,
+                baseProbability: state.baseProbability,
+                autoFlipping: state.autoFlipping,
+                // Save levels to restore UI cost
+                upgradeLevels: upgrades.map(u => u.level)
+            };
+            localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+        }
+
+        function loadGame() {
+            const saved = localStorage.getItem(SAVE_KEY);
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    state.money = data.money || 0;
+                    state.streak = data.streak || 0;
+                    state.baseValue = data.baseValue || 1;
+                    state.momentumLevel = data.momentumLevel || 0;
+                    state.baseProbability = data.baseProbability || 0.50;
+                    
+                    // Restore upgrade levels
+                    if (data.upgradeLevels) {
+                        upgrades.forEach((u, i) => {
+                            u.level = data.upgradeLevels[i] || 0;
+                        });
+                    }
+
+                    if (data.autoFlipping) startAutoFlip();
+                } catch (e) {
+                    console.error("Save file corrupted, resetting.");
+                }
+            }
+        }
+
+        function hardReset() {
+            if(confirm("Are you sure you want to wipe your save data?")) {
+                localStorage.removeItem(SAVE_KEY);
+                location.reload();
+            }
+        }
+
+        // Auto-save every 10 seconds
+        setInterval(saveGame, 10000);
+
+        // --- Canvas Setup ---
+        const container = document.getElementById('canvasContainer');
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let particles = [];
+        let floatingTexts = [];
+
+        // Animation Vars
+        let coinScaleX = 1;
+        let coinAngle = 0;
+        let coinSide = 'HEADS'; 
+        
+        function resize() {
+            width = container.offsetWidth;
+            height = container.offsetHeight;
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            canvas.style.width = width + "px";
+            canvas.style.height = height + "px";
+            ctx.scale(dpr, dpr);
+        }
+        window.addEventListener('resize', resize);
+        
+        // --- Interaction ---
+        canvas.addEventListener('mousedown', handleInteract);
+        canvas.addEventListener('touchstart', handleInteract);
+
+        function handleInteract(e) {
+            e.preventDefault();
+            AudioEngine.init(); // Initialize audio on first gesture
+            if (!state.flipping && !state.autoFlipping) {
+                triggerFlip();
+            }
+        }
+
+        function toggleMute() {
+            AudioEngine.muted = !AudioEngine.muted;
+            document.getElementById('icon-sound').style.display = AudioEngine.muted ? 'none' : 'block';
+            document.getElementById('icon-mute').style.display = AudioEngine.muted ? 'block' : 'none';
+        }
+
+        function triggerFlip() {
+            if (state.flipping) return;
+            state.flipping = true;
+            
+            const isHeads = Math.random() < state.baseProbability;
+            state.result = isHeads ? 'HEADS' : 'TAILS';
+            
+            AudioEngine.playFlip();
+
+            let startTime = null;
+            const duration = 600; 
+            const rotations = 5; 
+
+            function animateFlip(timestamp) {
+                if (!startTime) startTime = timestamp;
+                const progress = Math.min((timestamp - startTime) / duration, 1);
+                const ease = 1 - Math.pow(1 - progress, 3);
+                const totalDegrees = 180 * rotations * ease;
+                coinAngle = totalDegrees;
+                coinScaleX = Math.cos(coinAngle * Math.PI / 180 * 5); 
+
+                if (progress < 0.9) {
+                    coinSide = (Math.floor(totalDegrees / 90) % 2 === 0) ? 'HEADS' : 'TAILS';
+                } else {
+                    coinSide = state.result;
+                    if(progress === 1) coinScaleX = 1;
+                }
+
+                if (progress < 1) requestAnimationFrame(animateFlip);
+                else resolveFlip();
+            }
+            requestAnimationFrame(animateFlip);
+        }
+
+        function resolveFlip() {
+            state.flipping = false;
+            coinScaleX = 1;
+            coinSide = state.result;
+
+            if (state.result === 'HEADS') {
+                state.streak++;
+                const mult = upgrades[1].getMult();
+                const streakPower = Math.max(0, state.streak - 1);
+                const reward = state.baseValue * Math.pow(mult, streakPower);
+                state.money += reward;
+                
+                AudioEngine.playHeads();
+                spawnParticles(width/2, height/2 - 40, '#ffd700');
+                spawnFloatingText(`+$${reward.toFixed(2)}`, width/2, height/2 - 120, '#ffd700');
+                if (mult > 1 && state.streak > 1) {
+                    spawnFloatingText(`${mult.toFixed(1)}x COMBO!`, width/2, height/2 + 100, '#00d2ff', 2);
+                }
+            } else {
+                state.streak = 0;
+                AudioEngine.playTails();
+                spawnFloatingText("STREAK LOST", width/2, height/2 - 100, '#ff4b4b');
+            }
+
+            saveGame(); // Save on every flip result
+            updateDOM();
+            checkWin();
+        }
+
+        function spawnParticles(x, y, color) {
+            for(let i=0; i<20; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 12,
+                    vy: (Math.random() - 0.5) * 12,
+                    life: 1.0,
+                    color: color
+                });
+            }
+        }
+
+        function spawnFloatingText(text, x, y, color, speedY = 1.5) {
+            floatingTexts.push({ text, x, y, color, speedY, life: 1.0 });
+        }
+
+        // --- Main Loop ---
+        function loop() {
+            ctx.clearRect(0, 0, width, height);
+            drawStreakMeter();
+            const cx = width / 2, cy = height / 2;
+            
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.scale(Math.abs(coinScaleX), 1);
+            
+            // Momentum Glow
+            if (state.streak > 1 && coinScaleX > 0.8) {
+                const glowSize = 90 + (Math.sin(Date.now() / 200) * 10);
+                ctx.beginPath();
+                ctx.arc(0, 0, glowSize, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(0, 210, 255, ${Math.min(state.streak * 0.08, 0.4)})`;
+                ctx.fill();
+            }
+
+            // Coin Drawing
+            ctx.beginPath();
+            ctx.arc(0, 0, 70, 0, Math.PI * 2);
+            if (coinSide === 'HEADS') {
+                const grad = ctx.createRadialGradient(-15, -15, 5, 0, 0, 70);
+                grad.addColorStop(0, '#ffd700'); grad.addColorStop(1, '#b8860b');
+                ctx.fillStyle = grad; ctx.fill();
+                ctx.lineWidth = 5; ctx.strokeStyle = '#e0b000'; ctx.stroke();
+                ctx.fillStyle = '#5c4000'; ctx.font = 'bold 50px sans-serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('H', 0, 4);
+            } else {
+                const grad = ctx.createRadialGradient(-15, -15, 5, 0, 0, 70);
+                grad.addColorStop(0, '#e0e0e0'); grad.addColorStop(1, '#666');
+                ctx.fillStyle = grad; ctx.fill();
+                ctx.lineWidth = 5; ctx.strokeStyle = '#888'; ctx.stroke();
+                ctx.fillStyle = '#333'; ctx.font = 'bold 50px sans-serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('T', 0, 4);
+            }
+            ctx.restore();
+
+            // Tutorial / Status Text
+            if (!state.flipping && !state.autoFlipping && state.streak < 10) {
+                ctx.fillStyle = `rgba(255,255,255, ${0.4 + Math.sin(Date.now()/500)*0.2})`;
+                ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText('TAP ANYWHERE TO FLIP', width/2, cy + 110);
+            }
+            if (state.autoFlipping) {
+                ctx.fillStyle = '#4bff81'; ctx.font = '700 12px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText('AUTO-PILOT ACTIVE', width/2, cy + 110);
+            }
+
+            updateParticles();
+            requestAnimationFrame(loop);
+        }
+
+        function drawStreakMeter() {
+            const barW = Math.min(width * 0.6, 400);
+            const barH = 6;
+            const x = (width - barW) / 2;
+            const y = height - 50;
+
+            ctx.fillStyle = '#8a8a9b'; ctx.font = '700 12px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText(`CURRENT STREAK: ${state.streak}`, width/2, y - 20);
+            ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fillRect(x, y, barW, barH);
+            const fillPct = Math.min(state.streak / 10, 1);
+            if (fillPct > 0) {
+                const grad = ctx.createLinearGradient(x, y, x + barW, y);
+                grad.addColorStop(0, '#00d2ff'); grad.addColorStop(1, '#fff');
+                ctx.fillStyle = grad; ctx.fillRect(x, y, barW * fillPct, barH);
+                ctx.shadowColor = '#00d2ff'; ctx.shadowBlur = 10; ctx.fillRect(x, y, barW * fillPct, barH); ctx.shadowBlur = 0;
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx; p.y += p.vy; p.vy += 0.5; p.life -= 0.02;
+                if (p.life <= 0) particles.splice(i, 1);
+                else {
+                    ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
+                }
+            }
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const t = floatingTexts[i];
+                t.y -= t.speedY; t.life -= 0.01;
+                if (t.life <= 0) floatingTexts.splice(i, 1);
+                else {
+                    ctx.save(); ctx.globalAlpha = Math.max(0, t.life); ctx.fillStyle = t.color;
+                    ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 4; ctx.font = '700 24px sans-serif';
+                    ctx.textAlign = 'center'; ctx.fillText(t.text, t.x, t.y); ctx.restore();
+                }
+            }
+        }
+
+        // --- DOM Updates ---
+        function updateDOM() {
+            document.getElementById('uiMoney').innerText = `$${state.money.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('uiProb').innerText = `${(state.baseProbability * 100).toFixed(0)}%`;
+            document.getElementById('uiMult').innerText = `${upgrades[1].getMult().toFixed(2)}x`;
+            renderShop();
+        }
+
+        function renderShop() {
+            const container = document.getElementById('shop');
+            container.innerHTML = '';
+            upgrades.forEach((u, idx) => {
+                const cost = Math.floor(u.baseCost * Math.pow(u.costMult, u.level));
+                const isMaxed = u.level >= u.maxLevel;
+                const canBuy = state.money >= cost && !isMaxed;
+                const div = document.createElement('div');
+                div.className = 'shop-item';
+                div.style.setProperty('--item-color', u.color);
+                div.innerHTML = `
+                    <div class="item-top">
+                        <span class="item-name" style="color:${u.color}">${u.name}</span>
+                        <span class="item-lvl">Lvl ${u.level}/${u.maxLevel}</span>
+                    </div>
+                    <div class="item-desc">${u.desc}</div>
+                    ${isMaxed 
+                        ? `<div style="text-align:center; color:var(--success); font-weight:700; font-size:0.8rem; padding:10px;">MAX LEVEL</div>` 
+                        : `<button class="buy-btn" ${canBuy ? '' : 'disabled'} onclick="buyUpgrade(${idx})"><span>UPGRADE</span><span>$${cost.toLocaleString()}</span></button>`
+                    }
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        window.buyUpgrade = function(idx) {
+            AudioEngine.init();
+            const u = upgrades[idx];
+            const cost = Math.floor(u.baseCost * Math.pow(u.costMult, u.level));
+            if (state.money >= cost && u.level < u.maxLevel) {
+                state.money -= cost;
+                u.level++;
+                u.effect();
+                AudioEngine.playBuy();
+                saveGame();
+                updateDOM();
+            }
+        };
+
+        let autoInterval;
+        function startAutoFlip() {
+            state.autoFlipping = true;
+            if(autoInterval) clearInterval(autoInterval);
+            autoInterval = setInterval(() => { if (!state.flipping && state.streak < 10) triggerFlip(); }, 800);
+        }
+
+        function checkWin() {
+            if (state.streak >= 10) {
+                setTimeout(() => {
+                    document.getElementById('winModal').style.display = 'flex';
+                    document.getElementById('finalStats').innerText = `Final Balance: $${state.money.toFixed(2)}`;
+                    AudioEngine.playWin();
+                    saveGame(); // Save the win state
+                }, 1000);
+            }
+        }
+
+        // --- Init ---
+        loadGame();
+        setTimeout(resize, 0); // Force resize on load
+        updateDOM();
+        loop();
+
+    </script>
+</body>
+</html>
